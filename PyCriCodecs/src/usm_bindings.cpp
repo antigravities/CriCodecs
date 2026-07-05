@@ -28,9 +28,12 @@ namespace {
     return options;
 }
 
-[[nodiscard]] cricodecs::usm::UsmReader load_usm_any(const nb::object& source, const nb::object& encoding) {
+[[nodiscard]] cricodecs::usm::UsmReader load_usm_any(const nb::object& source, const nb::object& encoding, const nb::object& key = nb::none()) {
     cricodecs::usm::UsmReader reader;
     reader.set_encoding(encoding_options_from_python(encoding));
+    if (!key.is_none()) {
+        reader.set_key(nb::cast<uint64_t>(key));
+    }
     if (auto path = python_text_path(source)) {
         unwrap_expected(reader.load(std::filesystem::path(*path)));
         return reader;
@@ -125,27 +128,39 @@ void bind_usm_module(nb::module_& module) {
     nb::class_<cricodecs::usm::UsmReader>(module, "Usm")
         .def_static(
             "load",
-            [](const std::string& path, const nb::object& encoding) {
+            [](const std::string& path, const nb::object& encoding, const nb::int_& key) {
                 cricodecs::usm::UsmReader reader;
                 reader.set_encoding(encoding_options_from_python(encoding));
+
+                if( ! key.is_none() ) {
+                    reader.set_key(static_cast<uint64_t>(key));
+                }
+
                 unwrap_expected(reader.load(std::filesystem::path(path)));
                 return reader;
             },
             nb::arg("path"),
             nb::arg("encoding") = nb::none(),
+            nb::arg("key") = nb::none(),
             "Load a USM container from a filesystem path."
         )
         .def_static(
             "load_bytes",
-            [](const nb::bytes& data, const nb::object& encoding) {
+            [](const nb::bytes& data, const nb::object& encoding, const nb::int_& key) {
                 const auto data_view = borrow_python_bytes(data);
                 cricodecs::usm::UsmReader reader;
                 reader.set_encoding(encoding_options_from_python(encoding));
+
+                if( ! key.is_none() ) {
+                    reader.set_key(static_cast<uint64_t>(key));
+                }
+
                 unwrap_expected(reader.load(as_byte_span(data_view)));
                 return reader;
             },
             nb::arg("data"),
             nb::arg("encoding") = nb::none(),
+            nb::arg("key") = nb::none(),
             "Load a USM container from raw bytes."
         )
         .def_prop_ro("source_path", [](const cricodecs::usm::UsmReader& self) {
@@ -320,7 +335,8 @@ void bind_usm_module(nb::module_& module) {
         "load",
         &load_usm_any,
         nb::arg("source"),
-        nb::arg("encoding") = nb::none()
+        nb::arg("encoding") = nb::none(),
+        nb::arg("key") = nb::none()
     );
     module.def(
         "demux",
@@ -336,8 +352,8 @@ void bind_usm_module(nb::module_& module) {
     );
     module.def(
         "demux",
-        [](const nb::object& source, const nb::object& encoding) {
-            auto usm = load_usm_any(source, encoding);
+        [](const nb::object& source, const nb::object& encoding, const nb::object& key) {
+            auto usm = load_usm_any(source, encoding, key);
             nb::dict streams;
             for (auto&& [name, bytes] : unwrap_expected(usm.demux())) {
                 streams[nb::str(name.c_str())] =
@@ -346,7 +362,8 @@ void bind_usm_module(nb::module_& module) {
             return streams;
         },
         nb::arg("source"),
-        nb::arg("encoding") = nb::none()
+        nb::arg("encoding") = nb::none(),
+        nb::arg("key") = nb::none()
     );
     module.def(
         "extract",
@@ -358,13 +375,14 @@ void bind_usm_module(nb::module_& module) {
     );
     module.def(
         "extract",
-        [](const nb::object& source, const nb::object& output_dir, const nb::object& encoding) {
-            auto usm = load_usm_any(source, encoding);
+        [](const nb::object& source, const nb::object& output_dir, const nb::object& encoding, const nb::object& key) {
+            auto usm = load_usm_any(source, encoding, key);
             unwrap_expected(usm.extract(require_python_path(output_dir, "output_dir")));
         },
         nb::arg("source"),
         nb::arg("output_dir"),
-        nb::arg("encoding") = nb::none()
+        nb::arg("encoding") = nb::none(),
+        nb::arg("key") = nb::none()
     );
 }
 
